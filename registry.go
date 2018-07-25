@@ -11,6 +11,7 @@ type Registry interface {
 	Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository, error)
 	// Tags list the tags of the repository
 	Tags(ctx context.Context, repository string, opts *ListTagOptions) ([]string, error)
+	RegistryAddress() string
 }
 
 // New docker registry client

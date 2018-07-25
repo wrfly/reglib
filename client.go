@@ -15,11 +15,13 @@ type client struct {
 	baseURL  string
 	username string
 	password string
-	registry rClient.Registry
-	author   http.RoundTripper
+
+	registry    rClient.Registry
+	author      http.RoundTripper
+	registryURL *url.URL
 }
 
-func (c *client) init() (err error) {
+func (c *client) init() error {
 	if c.username == "" || c.password == "" {
 		u, p, err := GetAuthFromFile(c.baseURL)
 		if err != nil {
@@ -35,9 +37,11 @@ func (c *client) init() (err error) {
 		c.baseURL = "https://" + c.baseURL
 	}
 
+	c.registryURL, _ = url.Parse(c.baseURL)
+
 	c.author = newAuthRoundTripper(c.username, c.password)
 	c.registry, err = rClient.NewRegistry(c.baseURL, c.author)
-	return
+	return err
 }
 
 func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository, error) {
@@ -59,7 +63,7 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 	)
 
 	for {
-		tempRepos := make([]string, 100)
+		tempRepos := make([]string, 50)
 		n, err := c.registry.Repositories(ctx, tempRepos, last)
 		if err != nil {
 			if err == io.EOF {
@@ -88,10 +92,10 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 	for _, name := range targetRepos {
 		go func(repo string) {
 			if opts.WithTags {
-				tags, err := c.Tags(ctx, repo, nil)
-				if err != nil {
-					tags = append(tags, fmt.Sprintf("get tags of repo %s error: %s", repo, err))
-				}
+				tags, _ := c.Tags(ctx, repo, nil)
+				// if err != nil {
+				// 	tags = append(tags, fmt.Sprintf("get tags of repo %s error: %s", repo, err))
+				// }
 				repoChan <- Repository{
 					FullName: repo,
 					Tags:     tags,
@@ -124,4 +128,8 @@ func (c *client) Tags(ctx context.Context, repository string, opts *ListTagOptio
 		return nil, err
 	}
 	return r.Tags(ctx).All(ctx)
+}
+
+func (c *client) RegistryAddress() string {
+	return c.registryURL.Host
 }
