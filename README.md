@@ -1,2 +1,3 @@
 # reglib
-docker registry lib
+
+golang docker registry lib
