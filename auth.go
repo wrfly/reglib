@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 )
 
 type author struct {
@@ -55,7 +54,6 @@ func (a *author) getAuthString(resp *http.Response) (string, error) {
 	challenge := resp.Header.Get("WWW-Authenticate")
 
 	if t := a.checkToken(challenge); t != "" {
-		fmt.Println(t)
 		return t, nil
 	}
 
@@ -86,20 +84,21 @@ func (a *author) getAuthString(resp *http.Response) (string, error) {
 		return "", err
 	}
 
-	t.authString = fmt.Sprintf("%s %s", scheme, t.Token)
+	t.scheme = scheme
 	a.storeToken(challenge, t)
 
-	return t.authString, nil
+	return fmt.Sprintf("%s %s", t.scheme, t.Token), nil
 }
 
 func (a *author) checkToken(challenge string) string {
 	a.tokenMutex.RLock()
 	defer a.tokenMutex.RUnlock()
 	if t, exist := a.tokens[challenge]; exist {
-		exp := time.Second * time.Duration(t.ExpiresIn)
-		if t.IssuedAt.Sub(time.Now().Add(exp)).Seconds() > 0 {
-			return t.authString
-		}
+		return fmt.Sprintf("%s %s", t.scheme, t.Token)
+		// the registry's date time may not the same as us, but 300s is sufficient
+		// exp := time.Second * time.Duration(t.ExpiresIn)
+		// if t.IssuedAt.Sub(time.Now().Add(exp)).Seconds() > 0 {
+		// }
 	}
 	return ""
 }

@@ -37,10 +37,10 @@ type ListTagOptions struct {
 type Errors []errcode.Error
 
 type token struct {
-	Token      string    `json:"token"`
-	ExpiresIn  int       `json:"expires_in"`
-	IssuedAt   time.Time `json:"issued_at"`
-	authString string
+	Token     string    `json:"token"`
+	ExpiresIn int       `json:"expires_in"`
+	IssuedAt  time.Time `json:"issued_at"`
+	scheme    string
 }
 
 type dockerConfig struct {
