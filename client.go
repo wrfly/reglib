@@ -2,14 +2,20 @@ package reglib
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
+	"github.com/docker/distribution"
+	// register manifest via its init function
+	_ "github.com/docker/distribution/manifest/schema1"
+	"github.com/docker/distribution/manifest/schema2"
 	rClient "github.com/docker/distribution/registry/client"
-	"github.com/opencontainers/go-digest"
+	"github.com/docker/docker/reference"
 )
 
 type client struct {
@@ -20,6 +26,7 @@ type client struct {
 	registry    rClient.Registry
 	author      http.RoundTripper
 	registryURL *url.URL
+	httpClient  *http.Client
 }
 
 func (c *client) init() error {
@@ -42,11 +49,16 @@ func (c *client) init() error {
 
 	c.author = newAuthRoundTripper(c.username, c.password)
 	c.registry, err = rClient.NewRegistry(c.baseURL, c.author)
+	c.httpClient = &http.Client{
+		Transport:     c.author,
+		Timeout:       1 * time.Minute,
+		CheckRedirect: checkHTTPRedirect,
+	}
 
 	slice := make([]string, 1)
 	n, err := c.registry.Repositories(context.Background(), slice, "")
 	if n != 1 {
-		return fmt.Errorf("can not get repositories")
+		return fmt.Errorf("can not get repositories: %s", err)
 	}
 	return err
 }
@@ -128,7 +140,11 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 }
 
 func (c *client) Tags(ctx context.Context, repository string, opts *ListTagOptions) ([]string, error) {
-	r, err := rClient.NewRepository(&named{name: repository}, c.baseURL, c.author)
+	named, err := reference.ParseNamed(repository)
+	if err != nil {
+		return nil, err
+	}
+	r, err := rClient.NewRepository(named, c.baseURL, c.author)
 	if err != nil {
 		return nil, err
 	}
@@ -136,25 +152,36 @@ func (c *client) Tags(ctx context.Context, repository string, opts *ListTagOptio
 }
 
 func (c *client) Image(ctx context.Context, repository, tag string) (img Image, err error) {
-	r, err := rClient.NewRepository(&named{name: repository}, c.baseURL, c.author)
+	named, err := reference.ParseNamed(repository)
 	if err != nil {
-		return
-	}
-	m, err := r.Manifests(ctx)
-	if err != nil {
-		return
-	}
-	manifest, err := m.Get(ctx, digest.FromString(tag))
-	if err != nil {
-		return
-	}
-	descriptors := manifest.References()
-
-	for _, des := range descriptors {
-		fmt.Printf("%v\n", des)
+		return img, err
 	}
 
-	return
+	r, err := rClient.NewRepository(named, c.baseURL, c.author)
+	if err != nil {
+		return img, err
+	}
+	ms, err := r.Manifests(ctx)
+	if err != nil {
+		return img, err
+	}
+	m, err := ms.Get(ctx, "", distribution.WithTagOption{Tag: tag})
+	if err != nil {
+		return img, err
+	}
+	_, pld, err := m.Payload()
+	if err != nil {
+		return img, err
+	}
+
+	manifest := &schema2.Manifest{}
+	if err := json.Unmarshal(pld, manifest); err != nil {
+		return img, err
+	}
+	lastLayer := manifest.Layers[len(manifest.Layers)-1]
+	fmt.Println(lastLayer)
+
+	return img, err
 }
 
 func (c *client) RegistryAddress() string {

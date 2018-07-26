@@ -59,15 +59,3 @@ type dockerConfig struct {
 		Auth string `json:"auth"`
 	} `json:"auths"`
 }
-
-type named struct {
-	name string
-}
-
-func (r *named) String() string {
-	return r.name
-}
-
-func (r *named) Name() string {
-	return r.name
-}

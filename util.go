@@ -3,8 +3,10 @@ package reglib
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -78,4 +80,37 @@ func GetAuthFromFile(regAddr string) (string, string, error) {
 		}
 	}
 	return "", "", fmt.Errorf("not found")
+}
+
+// checkHTTPRedirect is a callback that can manipulate redirected HTTP
+// requests. It is used to preserve Accept and Range headers.
+func checkHTTPRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+
+	if len(via) > 0 {
+		for headerName, headerVals := range via[0].Header {
+			if headerName != "Accept" && headerName != "Range" {
+				continue
+			}
+			for _, val := range headerVals {
+				// Don't add to redirected request if redirected
+				// request already has a header with the same
+				// name and value.
+				hasValue := false
+				for _, existingVal := range req.Header[headerName] {
+					if existingVal == val {
+						hasValue = true
+						break
+					}
+				}
+				if !hasValue {
+					req.Header.Add(headerName, val)
+				}
+			}
+		}
+	}
+
+	return nil
 }
