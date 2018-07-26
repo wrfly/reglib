@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	rClient "github.com/docker/distribution/registry/client"
+	"github.com/opencontainers/go-digest"
 )
 
 type client struct {
@@ -41,6 +42,12 @@ func (c *client) init() error {
 
 	c.author = newAuthRoundTripper(c.username, c.password)
 	c.registry, err = rClient.NewRegistry(c.baseURL, c.author)
+
+	slice := make([]string, 1)
+	n, err := c.registry.Repositories(context.Background(), slice, "")
+	if n != 1 {
+		return fmt.Errorf("can not get repositories")
+	}
 	return err
 }
 
@@ -63,7 +70,7 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 	)
 
 	for {
-		tempRepos := make([]string, 50)
+		tempRepos := make([]string, 10)
 		n, err := c.registry.Repositories(ctx, tempRepos, last)
 		if err != nil {
 			if err == io.EOF {
@@ -79,7 +86,7 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 		last = tempRepos[n-1]
 	}
 
-	if opts.NotAll {
+	if opts.Start < opts.End {
 		targetRepos = allRepos[opts.Start:opts.End]
 	} else {
 		targetRepos = allRepos
@@ -93,15 +100,13 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 		go func(repo string) {
 			if opts.WithTags {
 				tags, _ := c.Tags(ctx, repo, nil)
-				// if err != nil {
-				// 	tags = append(tags, fmt.Sprintf("get tags of repo %s error: %s", repo, err))
-				// }
 				repoChan <- Repository{
 					FullName: repo,
-					Tags:     tags,
+					tags:     tags,
+					cli:      c,
 				}
 			} else {
-				repoChan <- Repository{FullName: repo}
+				repoChan <- Repository{FullName: repo, cli: c}
 			}
 			wg.Done()
 		}(name)
@@ -123,11 +128,33 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 }
 
 func (c *client) Tags(ctx context.Context, repository string, opts *ListTagOptions) ([]string, error) {
-	r, err := rClient.NewRepository(&Repository{FullName: repository}, c.baseURL, c.author)
+	r, err := rClient.NewRepository(&named{name: repository}, c.baseURL, c.author)
 	if err != nil {
 		return nil, err
 	}
 	return r.Tags(ctx).All(ctx)
+}
+
+func (c *client) Image(ctx context.Context, repository, tag string) (img Image, err error) {
+	r, err := rClient.NewRepository(&named{name: repository}, c.baseURL, c.author)
+	if err != nil {
+		return
+	}
+	m, err := r.Manifests(ctx)
+	if err != nil {
+		return
+	}
+	manifest, err := m.Get(ctx, digest.FromString(tag))
+	if err != nil {
+		return
+	}
+	descriptors := manifest.References()
+
+	for _, des := range descriptors {
+		fmt.Printf("%v\n", des)
+	}
+
+	return
 }
 
 func (c *client) RegistryAddress() string {

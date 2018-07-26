@@ -1,6 +1,7 @@
 package reglib
 
 import (
+	"context"
 	"time"
 
 	"github.com/docker/distribution/registry/api/errcode"
@@ -9,19 +10,29 @@ import (
 type Repository struct {
 	FullName  string
 	Namespace string
-	Tags      []string
+	tags      []string
+	cli       *client
 }
 
-func (r *Repository) String() string {
-	return r.FullName
+func (r *Repository) Tags() []string {
+	if len(r.tags) != 0 {
+		return r.tags
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	tags, _ := r.cli.Tags(ctx, r.FullName, nil)
+	r.tags = tags
+	return tags
 }
 
-func (r *Repository) Name() string {
-	return r.FullName
+type Image struct {
+	Name   string
+	Layers []Layer
 }
+
+type Layer struct{}
 
 type ListRepoOptions struct {
-	NotAll    bool
 	WithTags  bool
 	Start     int
 	End       int
@@ -47,4 +58,16 @@ type dockerConfig struct {
 	Auths map[string]struct {
 		Auth string `json:"auth"`
 	} `json:"auths"`
+}
+
+type named struct {
+	name string
+}
+
+func (r *named) String() string {
+	return r.name
+}
+
+func (r *named) Name() string {
+	return r.name
 }

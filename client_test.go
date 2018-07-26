@@ -30,7 +30,9 @@ func TestClient(t *testing.T) {
 			t.Errorf("get repos error: %s", err)
 			return
 		}
-		t.Logf("got [%d] repos", len(repos))
+		for _, repo := range repos {
+			t.Logf("got [%s]\n", repo.FullName)
+		}
 	})
 
 	t.Run("list repos with tag", func(t *testing.T) {
@@ -40,10 +42,14 @@ func TestClient(t *testing.T) {
 			End:      10,
 		})
 		if err != nil {
-			t.Errorf("get repos error: %s", err)
+			t.Errorf("get repos with tags error: %s", err)
 			return
 		}
-		t.Logf("got [%d] repos", len(repos))
+		for _, repo := range repos {
+			for _, tag := range repo.Tags() {
+				t.Logf("got [%s:%s]\n", repo.FullName, tag)
+			}
+		}
 	})
 
 }
