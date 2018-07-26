@@ -5,27 +5,28 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 )
 
 type author struct {
-	user, pass string
+	userInfo   *url.Userinfo
 	client     *http.Client
 	tokens     map[string]token
 	tokenMutex sync.RWMutex
 }
 
-func newAuthRoundTripper(username, password string) *author {
+func newAuthRoundTripper(u, p string) *author {
 	return &author{
-		user:   username,
-		pass:   password,
-		client: http.DefaultClient,
-		tokens: make(map[string]token, 100),
+		userInfo: url.UserPassword(u, p),
+		client:   http.DefaultClient,
+		tokens:   make(map[string]token, 100),
 	}
 }
 
 func (a *author) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.URL.User = a.userInfo
 	resp, err := a.client.Do(req)
 	if err != nil {
 		if strings.Contains(err.Error(), "server gave HTTP response to HTTPS client") {
@@ -45,9 +46,10 @@ func (a *author) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, err
 		}
 		req.Header.Set("Authorization", authString)
+		return a.client.Do(req)
 	}
 
-	return a.client.Do(req)
+	return resp, nil
 }
 
 func (a *author) getAuthString(resp *http.Response) (string, error) {
@@ -61,13 +63,17 @@ func (a *author) getAuthString(resp *http.Response) (string, error) {
 	scheme, details := s[0], s[1]
 	m := string2Map(details)
 
+	if m["realm"] == "Registry Realm" {
+		return "", nil
+	}
+
 	req, _ := http.NewRequest("GET", m["realm"], nil)
 	q := req.URL.Query()
 	q.Set("service", m["service"])
 	q.Set("scope", m["scope"])
 	req.URL.RawQuery = q.Encode()
 
-	req.SetBasicAuth(a.user, a.pass)
+	req.Header.Set("Authorization", "")
 
 	resp, err := a.client.Do(req)
 	if err != nil {

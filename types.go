@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	dis "github.com/docker/distribution"
+	v1 "github.com/docker/distribution/manifest/schema1"
+	v2 "github.com/docker/distribution/manifest/schema2"
 	"github.com/docker/distribution/registry/api/errcode"
 )
 
@@ -26,11 +29,25 @@ func (r *Repository) Tags() []string {
 }
 
 type Image struct {
-	Name   string
-	Layers []Layer
+	V1 *v1.Manifest
+	V2 *v2.Manifest
 }
 
-type Layer struct{}
+func (i *Image) FullName() string {
+	return i.V1.Name + i.V1.Tag
+}
+
+func (i *Image) History() []v1.History {
+	return i.V1.History
+}
+
+func (i *Image) FSLayers() []v1.FSLayer {
+	return i.V1.FSLayers
+}
+
+func (i *Image) Layers() []dis.Descriptor {
+	return i.V2.Layers
+}
 
 type ListRepoOptions struct {
 	WithTags  bool

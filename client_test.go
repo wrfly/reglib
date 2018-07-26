@@ -7,7 +7,7 @@ import (
 )
 
 func initTestClient() (client, error) {
-	r := "docker.nexusguard.net"
+	r := "http://localhost:5000"
 	c := client{
 		baseURL:  r,
 		username: os.Getenv("REG_U"),
@@ -63,8 +63,9 @@ func TestListRepoWithTags(t *testing.T) {
 		return
 	}
 	for _, repo := range repos {
+		t.Logf("image %s\n", repo.FullName)
 		for _, tag := range repo.Tags() {
-			t.Logf("got [%s:%s]\n", repo.FullName, tag)
+			t.Logf("tag %s\n", tag)
 		}
 	}
 
@@ -78,10 +79,14 @@ func TestGetImage(t *testing.T) {
 		return
 	}
 
-	image, err := c.Image(ctx, "admin/redis", "latest")
+	image, err := c.Image(ctx, "alpine", "")
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	t.Log(image)
+	t.Log(image.FullName())
+	t.Log(image.Layers())
+	for _, hist := range image.History() {
+		t.Log(hist)
+	}
 }

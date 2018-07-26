@@ -2,20 +2,15 @@ package reglib
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"sync"
-	"time"
 
 	"github.com/docker/distribution"
-	// register manifest via its init function
-	_ "github.com/docker/distribution/manifest/schema1"
-	"github.com/docker/distribution/manifest/schema2"
+	"github.com/docker/distribution/reference"
 	rClient "github.com/docker/distribution/registry/client"
-	"github.com/docker/docker/reference"
 )
 
 type client struct {
@@ -26,16 +21,11 @@ type client struct {
 	registry    rClient.Registry
 	author      http.RoundTripper
 	registryURL *url.URL
-	httpClient  *http.Client
 }
 
 func (c *client) init() error {
 	if c.username == "" || c.password == "" {
-		u, p, err := GetAuthFromFile(c.baseURL)
-		if err != nil {
-			return err
-		}
-		c.username, c.password = u, p
+		c.username, c.password = GetAuthFromFile(c.baseURL)
 	}
 	u, err := url.Parse(c.baseURL)
 	if err != nil {
@@ -49,21 +39,21 @@ func (c *client) init() error {
 
 	c.author = newAuthRoundTripper(c.username, c.password)
 	c.registry, err = rClient.NewRegistry(c.baseURL, c.author)
-	c.httpClient = &http.Client{
-		Transport:     c.author,
-		Timeout:       1 * time.Minute,
-		CheckRedirect: checkHTTPRedirect,
-	}
 
 	slice := make([]string, 1)
 	n, err := c.registry.Repositories(context.Background(), slice, "")
 	if n != 1 {
 		return fmt.Errorf("can not get repositories: %s", err)
 	}
+	if err == io.EOF {
+		return nil
+	}
 	return err
 }
 
-func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository, error) {
+func (c *client) Repos(ctx context.Context,
+	opts *ListRepoOptions) ([]Repository, error) {
+
 	if opts == nil {
 		opts = &ListRepoOptions{}
 	} else {
@@ -82,24 +72,33 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 	)
 
 	for {
-		tempRepos := make([]string, 10)
+		tempRepos := make([]string, 50)
 		n, err := c.registry.Repositories(ctx, tempRepos, last)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		allRepos = append(allRepos, tempRepos...)
-		total += n
-		if opts.End != 0 && total > opts.End {
+		allRepos = append(allRepos, tempRepos[:n]...)
+		if err == io.EOF {
 			break
 		}
-		last = tempRepos[n-1]
+		if err == nil {
+			total += n
+			if opts.End != 0 && total > opts.End {
+				break
+			}
+			last = tempRepos[n-1]
+			continue
+		} else {
+			return nil, err
+		}
 	}
 
 	if opts.Start < opts.End {
-		targetRepos = allRepos[opts.Start:opts.End]
+		var start, end, l = opts.Start, opts.End, len(allRepos)
+		if l < end {
+			end = l
+		}
+		if start > l {
+			start = 0
+		}
+		targetRepos = allRepos[start:end]
 	} else {
 		targetRepos = allRepos
 	}
@@ -111,7 +110,10 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 	for _, name := range targetRepos {
 		go func(repo string) {
 			if opts.WithTags {
-				tags, _ := c.Tags(ctx, repo, nil)
+				tags, err := c.Tags(ctx, repo, nil)
+				if err != nil {
+					fmt.Println("get tag error:", err)
+				}
 				repoChan <- Repository{
 					FullName: repo,
 					tags:     tags,
@@ -139,8 +141,10 @@ func (c *client) Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository
 	return repos, nil
 }
 
-func (c *client) Tags(ctx context.Context, repository string, opts *ListTagOptions) ([]string, error) {
-	named, err := reference.ParseNamed(repository)
+func (c *client) Tags(ctx context.Context, repository string,
+	opts *ListTagOptions) ([]string, error) {
+
+	named, err := reference.WithName(repository)
 	if err != nil {
 		return nil, err
 	}
@@ -151,39 +155,45 @@ func (c *client) Tags(ctx context.Context, repository string, opts *ListTagOptio
 	return r.Tags(ctx).All(ctx)
 }
 
-func (c *client) Image(ctx context.Context, repository, tag string) (img Image, err error) {
-	named, err := reference.ParseNamed(repository)
+func (c *client) Image(ctx context.Context, repo, tag string) (img Image, err error) {
+	r, err := c.newRepo(repo, tag)
 	if err != nil {
 		return img, err
 	}
 
-	r, err := rClient.NewRepository(named, c.baseURL, c.author)
-	if err != nil {
-		return img, err
-	}
 	ms, err := r.Manifests(ctx)
 	if err != nil {
 		return img, err
 	}
-	m, err := ms.Get(ctx, "", distribution.WithTagOption{Tag: tag})
-	if err != nil {
-		return img, err
-	}
-	_, pld, err := m.Payload()
+
+	img.V1, err = manifestV1(ctx, ms, tag)
 	if err != nil {
 		return img, err
 	}
 
-	manifest := &schema2.Manifest{}
-	if err := json.Unmarshal(pld, manifest); err != nil {
+	img.V2, err = manifestV2(ctx, ms, tag)
+	if err != nil {
 		return img, err
 	}
-	lastLayer := manifest.Layers[len(manifest.Layers)-1]
-	fmt.Println(lastLayer)
 
 	return img, err
 }
 
 func (c *client) RegistryAddress() string {
 	return c.registryURL.Host
+}
+
+func (c *client) newRepo(name, tag string) (distribution.Repository, error) {
+	named, err := reference.WithName(name)
+	if err != nil {
+		return nil, err
+	}
+	if tag == "" {
+		tag = "latest"
+	}
+	nt, err := reference.WithTag(named, tag)
+	if err != nil {
+		return nil, err
+	}
+	return rClient.NewRepository(nt, c.baseURL, c.author)
 }

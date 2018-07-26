@@ -3,10 +3,8 @@ package reglib
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -36,18 +34,18 @@ func parseDockerCondig() (dockerConfig, error) {
 	return dc, nil
 }
 
-func parseAuth(auth string) (string, string, error) {
+func parseAuth(auth string) (string, string) {
 	bs, err := base64.StdEncoding.DecodeString(auth)
 	if err != nil {
-		return "", "", err
+		return "", ""
 	}
 	str := fmt.Sprintf("%s", bs)
 	uAp := strings.Split(str, ":")
 	if len(uAp) != 2 {
-		return "", "", nil
+		return "", ""
 	}
 
-	return uAp[0], uAp[1], nil
+	return uAp[0], uAp[1]
 }
 
 // a="1",b="2" -> map["a":"1","b":"2"]
@@ -69,48 +67,15 @@ func string2Map(str string) map[string]string {
 
 // GetAuthFromFile returns the username, password of that registry from
 // the config file ($HOME/.docker/config.json)
-func GetAuthFromFile(regAddr string) (string, string, error) {
+func GetAuthFromFile(regAddr string) (string, string) {
 	configs, err := parseDockerCondig()
 	if err != nil {
-		return "", "", err
+		return "", ""
 	}
 	for reg, auth := range configs.Auths {
 		if reg == regAddr {
 			return parseAuth(auth.Auth)
 		}
 	}
-	return "", "", fmt.Errorf("not found")
-}
-
-// checkHTTPRedirect is a callback that can manipulate redirected HTTP
-// requests. It is used to preserve Accept and Range headers.
-func checkHTTPRedirect(req *http.Request, via []*http.Request) error {
-	if len(via) >= 10 {
-		return errors.New("stopped after 10 redirects")
-	}
-
-	if len(via) > 0 {
-		for headerName, headerVals := range via[0].Header {
-			if headerName != "Accept" && headerName != "Range" {
-				continue
-			}
-			for _, val := range headerVals {
-				// Don't add to redirected request if redirected
-				// request already has a header with the same
-				// name and value.
-				hasValue := false
-				for _, existingVal := range req.Header[headerName] {
-					if existingVal == val {
-						hasValue = true
-						break
-					}
-				}
-				if !hasValue {
-					req.Header.Add(headerName, val)
-				}
-			}
-		}
-	}
-
-	return nil
+	return "", ""
 }
