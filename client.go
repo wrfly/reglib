@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/docker/distribution"
+	dis "github.com/docker/distribution"
 	"github.com/docker/distribution/reference"
 	rClient "github.com/docker/distribution/registry/client"
 )
@@ -156,6 +156,9 @@ func (c *client) Tags(ctx context.Context, repository string,
 }
 
 func (c *client) Image(ctx context.Context, repo, tag string) (img Image, err error) {
+	if tag == "" {
+		tag = "latest"
+	}
 	r, err := c.newRepo(repo, tag)
 	if err != nil {
 		return img, err
@@ -183,13 +186,10 @@ func (c *client) RegistryAddress() string {
 	return c.registryURL.Host
 }
 
-func (c *client) newRepo(name, tag string) (distribution.Repository, error) {
+func (c *client) newRepo(name, tag string) (dis.Repository, error) {
 	named, err := reference.WithName(name)
 	if err != nil {
 		return nil, err
-	}
-	if tag == "" {
-		tag = "latest"
 	}
 	nt, err := reference.WithTag(named, tag)
 	if err != nil {

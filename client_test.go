@@ -87,6 +87,6 @@ func TestGetImage(t *testing.T) {
 	t.Log(image.FullName())
 	t.Log(image.Layers())
 	for _, hist := range image.History() {
-		t.Log(hist)
+		t.Log(hist.Created)
 	}
 }
