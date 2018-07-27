@@ -8,17 +8,18 @@ import (
 	dis "github.com/docker/distribution"
 	v1 "github.com/docker/distribution/manifest/schema1"
 	v2 "github.com/docker/distribution/manifest/schema2"
-	"github.com/docker/distribution/registry/api/errcode"
 )
 
+// Repository is the instance of an repo
 type Repository struct {
 	FullName  string
 	Namespace string
-	tags      []string
+	tags      []Tag
 	cli       *client
 }
 
-func (r *Repository) Tags() []string {
+// Tags returns the repo's tags
+func (r *Repository) Tags() []Tag {
 	if len(r.tags) != 0 {
 		return r.tags
 	}
@@ -29,16 +30,28 @@ func (r *Repository) Tags() []string {
 	return tags
 }
 
+// Tag is the image's specfic tag
+type Tag struct {
+	TagName  string
+	FullName string
+	RepoName string
+	Image    *Image
+	cli      *client
+}
+
+// Image instance, includes the schemav1 and schemav2
 type Image struct {
 	V1      *v1.Manifest
 	V2      *v2.Manifest
 	history []ImageHistory
 }
 
+// FullName return the image name and it's tag
 func (i *Image) FullName() string {
 	return i.V1.Name + i.V1.Tag
 }
 
+// History converts the v1's history info to reglib's history struct
 func (i *Image) History() []ImageHistory {
 	if len(i.history) != 0 {
 		return i.history
@@ -53,18 +66,23 @@ func (i *Image) History() []ImageHistory {
 	return iHistory
 }
 
+// FSLayers returns the fs layer info (schemav1)
 func (i *Image) FSLayers() []v1.FSLayer {
 	return i.V1.FSLayers
 }
 
+// Layers returns the layer info (schemav2)
 func (i *Image) Layers() []dis.Descriptor {
 	return i.V2.Layers
 }
 
-// func (i *Image) Created() time.Time {
-// 	return i.V1.
-// }
+// Created returns the image's create time
+func (i *Image) Created() time.Time {
+	hist := i.History()
+	return hist[len(hist)-1].Created
+}
 
+// ListRepoOptions ...
 type ListRepoOptions struct {
 	WithTags  bool
 	Start     int
@@ -73,18 +91,18 @@ type ListRepoOptions struct {
 	Prefix    string
 }
 
+// ListTagOptions ...
 type ListTagOptions struct {
-	All    bool
-	Prefix string
+	Prefix       string
+	WithManifest bool
 }
 
-type Errors []errcode.Error
-
 type token struct {
-	Token     string    `json:"token"`
-	ExpiresIn int       `json:"expires_in"`
-	IssuedAt  time.Time `json:"issued_at"`
-	scheme    string
+	Token     string    `json:"token,omitempty"`
+	ExpiresIn int       `json:"expires_in,omitempty"`
+	IssuedAt  time.Time `json:"issued_at,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	typ       string
 }
 
 type dockerConfig struct {
@@ -93,7 +111,7 @@ type dockerConfig struct {
 	} `json:"auths"`
 }
 
-// thanks to https://mholt.github.io/json-to-go/
+// ImageHistory converted from json, thanks to https://mholt.github.io/json-to-go/
 type ImageHistory struct {
 	Architecture string `json:"architecture,omitempty"`
 	Config       struct {

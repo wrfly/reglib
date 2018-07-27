@@ -1,4 +1,4 @@
-package reglib
+package reglib // import "github.com/wrfly/reglib"
 
 import (
 	"context"
@@ -10,14 +10,17 @@ type Registry interface {
 	// Repos list the repositories
 	Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository, error)
 	// Tags list the tags of the repository
-	Tags(ctx context.Context, repository string, opts *ListTagOptions) ([]string, error)
-	RegistryAddress() string
+	Tags(ctx context.Context, repo string, opts *ListTagOptions) ([]Tag, error)
+	// Image get the image instance via the specfic repo and tag
+	Image(ctx context.Context, repo, tag string) (*Image, error)
+	// return the registry's host (domain)
+	Host() string
 }
 
 // New docker registry client
-func New(base, user, pass string) (Registry, error) {
+func New(baseURL, user, pass string) (Registry, error) {
 	c := &client{
-		baseURL:  base,
+		baseURL:  baseURL,
 		username: user,
 		password: pass,
 	}

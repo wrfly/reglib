@@ -42,11 +42,11 @@ func (c *client) init() error {
 
 	slice := make([]string, 1)
 	n, err := c.registry.Repositories(context.Background(), slice, "")
-	if n != 1 {
-		return fmt.Errorf("can not get repositories: %s", err)
-	}
 	if err == io.EOF {
 		return nil
+	}
+	if n != 1 {
+		return fmt.Errorf("can not get repositories: %s (%d)", err, n)
 	}
 	return err
 }
@@ -141,21 +141,52 @@ func (c *client) Repos(ctx context.Context,
 	return repos, nil
 }
 
-func (c *client) Tags(ctx context.Context, repository string,
-	opts *ListTagOptions) ([]string, error) {
+func (c *client) Tags(ctx context.Context, repo string,
+	opts *ListTagOptions) ([]Tag, error) {
 
-	named, err := reference.WithName(repository)
+	if opts == nil {
+		opts = &ListTagOptions{}
+	}
+
+	named, err := reference.WithName(repo)
 	if err != nil {
 		return nil, err
 	}
+
 	r, err := rClient.NewRepository(named, c.baseURL, c.author)
 	if err != nil {
 		return nil, err
 	}
-	return r.Tags(ctx).All(ctx)
+
+	tags, err := r.Tags(ctx).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	manifestTags := make([]Tag, 0, len(tags))
+	var img *Image
+	for _, tag := range tags {
+		if opts.WithManifest {
+			img, err = c.Image(ctx, repo, tag)
+			if err != nil {
+				fmt.Printf("get image [%s:%s] error: %s", repo, tag, err)
+			}
+		}
+		manifestTags = append(manifestTags, Tag{
+			FullName: repo + ":" + tag,
+			TagName:  tag,
+			RepoName: repo,
+			Image:    img,
+		})
+	}
+
+	return manifestTags, nil
+
 }
 
-func (c *client) Image(ctx context.Context, repo, tag string) (img Image, err error) {
+func (c *client) Image(ctx context.Context, repo, tag string) (img *Image, err error) {
+	img = &Image{}
+
 	if tag == "" {
 		tag = "latest"
 	}
@@ -182,7 +213,7 @@ func (c *client) Image(ctx context.Context, repo, tag string) (img Image, err er
 	return img, err
 }
 
-func (c *client) RegistryAddress() string {
+func (c *client) Host() string {
 	return c.registryURL.Host
 }
 
