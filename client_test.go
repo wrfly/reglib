@@ -136,4 +136,20 @@ func TestGetImage(t *testing.T) {
 		}
 		t.Log(tag.FullName, img.Created())
 	})
+
+	t.Run("image size", func(t *testing.T) {
+		tags, err := c.Tags(ctx, "admin/alpine", nil)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		tag := tags[0]
+		img, err := tag.Image()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		t.Logf("size of %s: %d", tag.FullName, img.Size())
+		t.Logf("size of %s: %s", tag.FullName, img.Size())
+	})
 }

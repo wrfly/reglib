@@ -3,6 +3,7 @@ package reglib
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	dis "github.com/docker/distribution"
@@ -57,11 +58,27 @@ func (t *Tag) Image() (*Image, error) {
 	return img, err
 }
 
+type imageSize int64
+
+func (is imageSize) String() string {
+	switch {
+	case is > gbSize:
+		return fmt.Sprintf("%.3fGB", float64(is/gbSize)+float64(is%gbSize)/float64(gbSize))
+	case is > mbSize:
+		return fmt.Sprintf("%.3fMB", float64(is/mbSize)+float64(is%mbSize)/float64(mbSize))
+	case is > kbSize:
+		return fmt.Sprintf("%.3fKB", float64(is/kbSize)+float64(is%kbSize)/float64(kbSize))
+	default:
+		return fmt.Sprintf("%dBytes", is)
+	}
+}
+
 // Image instance, includes the schemav1 and schemav2
 type Image struct {
 	V1      *v1.Manifest
 	V2      *v2.Manifest
 	history []ImageHistory
+	size    imageSize
 }
 
 // FullName return the image name and it's tag
@@ -98,6 +115,19 @@ func (i *Image) Layers() []dis.Descriptor {
 func (i *Image) Created() time.Time {
 	hist := i.History()
 	return hist[len(hist)-1].Created
+}
+
+// Size returns the image's size
+func (i *Image) Size() imageSize {
+	if i.size != 0 {
+		return i.size
+	}
+	var size int64
+	for _, layer := range i.V2.Layers {
+		size += layer.Size
+	}
+	i.size = imageSize(size)
+	return i.size
 }
 
 // ListRepoOptions ...
