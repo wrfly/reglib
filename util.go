@@ -79,3 +79,33 @@ func GetAuthFromFile(regAddr string) (string, string) {
 	}
 	return "", ""
 }
+
+func slice2Chan(slice []string, ch chan string) {
+	for _, s := range slice {
+		ch <- s
+	}
+}
+
+func chan2Slice(ch chan string, slice []string, start, end int) {
+	i := 0
+	for s := range ch {
+		if i >= start {
+			if i <= end || end < 0 {
+				slice = append(slice, s)
+			}
+		}
+		i++
+	}
+}
+
+func repoChan2Slice(ch chan Repository, slice []Repository, start, end int) {
+	i := 0
+	for s := range ch {
+		if i >= start {
+			if i <= end || end < 0 {
+				slice = append(slice, s)
+			}
+		}
+		i++
+	}
+}

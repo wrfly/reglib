@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 
 	dis "github.com/docker/distribution"
@@ -54,6 +55,19 @@ func (c *client) init() error {
 func (c *client) Repos(ctx context.Context,
 	opts *ListRepoOptions) ([]Repository, error) {
 
+	repoChan, err := c.ReposChan(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	repos := []Repository{}
+	for repo := range repoChan {
+		repos = append(repos, repo)
+	}
+	return repos, nil
+}
+
+func (c *client) ReposChan(ctx context.Context, opts *ListRepoOptions) (chan Repository, error) {
+
 	if opts == nil {
 		opts = &ListRepoOptions{}
 	} else {
@@ -65,80 +79,69 @@ func (c *client) Repos(ctx context.Context,
 
 	var (
 		last        = ""
-		total       = 0
-		allRepos    = []string{}
-		targetRepos = []string{}
-		repos       = []Repository{}
+		size, total = 50, 0
+		start, end  = opts.Start, opts.End
+		allRepos    = make(chan string, size)
+		repoChan    = make(chan Repository)
 	)
 
-	for {
-		tempRepos := make([]string, 50)
-		n, err := c.registry.Repositories(ctx, tempRepos, last)
-		allRepos = append(allRepos, tempRepos[:n]...)
-		if err == io.EOF {
-			break
-		}
-		if err == nil {
-			total += n
-			if opts.End != 0 && total > opts.End {
+	go func() {
+		defer close(allRepos)
+		for {
+			tempRepos := make([]string, size)
+			n, err := c.registry.Repositories(ctx, tempRepos, last)
+			slice2Chan(tempRepos[:n], allRepos)
+			if err == io.EOF {
 				break
 			}
-			last = tempRepos[n-1]
-			continue
-		} else {
-			return nil, err
-		}
-	}
-
-	if opts.Start < opts.End {
-		var start, end, l = opts.Start, opts.End, len(allRepos)
-		if l < end {
-			end = l
-		}
-		if start > l {
-			start = 0
-		}
-		targetRepos = allRepos[start:end]
-	} else {
-		targetRepos = allRepos
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(len(targetRepos))
-	repoChan := make(chan Repository)
-
-	for _, name := range targetRepos {
-		go func(repo string) {
-			if opts.WithTags {
-				tags, err := c.Tags(ctx, repo, nil)
-				if err != nil {
-					fmt.Println("get tag error:", err)
+			if err == nil {
+				total += n
+				if end != 0 && total > end {
+					break
 				}
-				repoChan <- Repository{
-					FullName: repo,
-					tags:     tags,
-					cli:      c,
-				}
+				last = tempRepos[n-1]
+				continue
 			} else {
-				repoChan <- Repository{FullName: repo, cli: c}
+				fmt.Printf("get repos error: %s", err)
 			}
-			wg.Done()
-		}(name)
-	}
-
-	consumeChan := make(chan struct{})
-	go func() {
-		for repo := range repoChan {
-			repos = append(repos, repo)
 		}
-		consumeChan <- struct{}{}
 	}()
 
-	wg.Wait()
-	close(repoChan)
+	go func() {
+		var wg sync.WaitGroup
+		var i int
+		for name := range allRepos {
+			if i < start || (i >= end && end > 0) {
+				continue
+			}
+			wg.Add(1)
+			go func(repo string) {
+				defer wg.Done()
+				var tags []Tag
+				var err error
 
-	<-consumeChan
-	return repos, nil
+				if opts.WithTags {
+					tags, err = c.Tags(ctx, repo, nil)
+					if err != nil {
+						fmt.Printf("get repo [%s] tags error: %s\n", repo, err)
+					}
+				}
+
+				repoChan <- Repository{
+					Namespace: strings.Split(repo, "/")[0],
+					Name:      repo,
+					tags:      tags,
+					cli:       c,
+				}
+			}(name)
+			i++
+		}
+		wg.Wait()
+		// runtime.Goexit()
+		close(repoChan)
+	}()
+
+	return repoChan, nil
 }
 
 func (c *client) Tags(ctx context.Context, repo string,
@@ -176,7 +179,8 @@ func (c *client) Tags(ctx context.Context, repo string,
 			FullName: repo + ":" + tag,
 			TagName:  tag,
 			RepoName: repo,
-			Image:    img,
+			image:    img,
+			cli:      c,
 		})
 	}
 

@@ -7,13 +7,11 @@ import (
 )
 
 func initTestClient() (client, error) {
-	r := "docker.nexusguard.net"
 	c := client{
-		baseURL:  r,
+		baseURL:  "docker.nexusguard.net",
 		username: os.Getenv("REG_U"),
 		password: os.Getenv("REG_P"),
 	}
-
 	return c, c.init()
 }
 
@@ -40,7 +38,7 @@ func TestListRepos(t *testing.T) {
 		return
 	}
 	for _, repo := range repos {
-		t.Logf("got [%s]\n", repo.FullName)
+		t.Logf("got [%s]\n", repo.Name)
 	}
 
 }
@@ -63,7 +61,7 @@ func TestListRepoWithTags(t *testing.T) {
 		return
 	}
 	for _, repo := range repos {
-		t.Logf("image %s\n", repo.FullName)
+		t.Logf("image %s\n", repo.Name)
 		for _, tag := range repo.Tags() {
 			t.Logf("got tag %s\n", tag.FullName)
 		}
@@ -79,14 +77,31 @@ func TestGetImage(t *testing.T) {
 		return
 	}
 
-	image, err := c.Image(ctx, "admin/alpine", "")
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	t.Log(image.FullName())
-	t.Log(image.Layers())
-	for _, hist := range image.History() {
-		t.Log(hist.Created)
-	}
+	t.Run("client get image", func(t *testing.T) {
+		image, err := c.Image(ctx, "backend/dnsproxy", "")
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		t.Log(image.FullName())
+		t.Log(image.Layers())
+		for _, hist := range image.History() {
+			t.Log(hist.Created)
+		}
+	})
+
+	t.Run("tag get image", func(t *testing.T) {
+		tags, err := c.Tags(ctx, "admin/alpine", nil)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		tag := tags[0]
+		img, err := tag.Image()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		t.Log(tag.FullName, img.Created())
+	})
 }

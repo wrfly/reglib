@@ -12,7 +12,7 @@ import (
 
 // Repository is the instance of an repo
 type Repository struct {
-	FullName  string
+	Name      string
 	Namespace string
 	tags      []Tag
 	cli       *client
@@ -23,9 +23,12 @@ func (r *Repository) Tags() []Tag {
 	if len(r.tags) != 0 {
 		return r.tags
 	}
+	if r.cli == nil {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	tags, _ := r.cli.Tags(ctx, r.FullName, nil)
+	tags, _ := r.cli.Tags(ctx, r.Name, nil)
 	r.tags = tags
 	return tags
 }
@@ -35,8 +38,23 @@ type Tag struct {
 	TagName  string
 	FullName string
 	RepoName string
-	Image    *Image
+	image    *Image
 	cli      *client
+}
+
+// Image returns the repo:tag's manifest
+func (t *Tag) Image() (*Image, error) {
+	if t.image != nil {
+		return t.image, nil
+	}
+	if t.cli == nil {
+		return nil, errNilCli
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	img, err := t.cli.Image(ctx, t.RepoName, t.TagName)
+	t.image = img
+	return img, err
 }
 
 // Image instance, includes the schemav1 and schemav2
@@ -48,7 +66,7 @@ type Image struct {
 
 // FullName return the image name and it's tag
 func (i *Image) FullName() string {
-	return i.V1.Name + i.V1.Tag
+	return i.V1.Name + ":" + i.V1.Tag
 }
 
 // History converts the v1's history info to reglib's history struct
@@ -84,17 +102,16 @@ func (i *Image) Created() time.Time {
 
 // ListRepoOptions ...
 type ListRepoOptions struct {
-	WithTags  bool
-	Start     int
-	End       int
-	Namespace string
-	Prefix    string
+	WithTags   bool
+	Start, End int
+	Namespace  string
+	Prefix     string
 }
 
 // ListTagOptions ...
 type ListTagOptions struct {
-	Prefix       string
 	WithManifest bool
+	Prefix       string
 }
 
 type token struct {
