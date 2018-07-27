@@ -177,7 +177,7 @@ func (c *client) Tags(ctx context.Context, repo string,
 		}
 		manifestTags = append(manifestTags, Tag{
 			FullName: repo + ":" + tag,
-			TagName:  tag,
+			Name:     tag,
 			RepoName: repo,
 			image:    img,
 			cli:      c,

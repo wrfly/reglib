@@ -35,7 +35,7 @@ func (r *Repository) Tags() []Tag {
 
 // Tag is the image's specfic tag
 type Tag struct {
-	TagName  string
+	Name     string
 	FullName string
 	RepoName string
 	image    *Image
@@ -52,7 +52,7 @@ func (t *Tag) Image() (*Image, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	img, err := t.cli.Image(ctx, t.RepoName, t.TagName)
+	img, err := t.cli.Image(ctx, t.RepoName, t.Name)
 	t.image = img
 	return img, err
 }

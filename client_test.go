@@ -29,17 +29,30 @@ func TestListRepos(t *testing.T) {
 		return
 	}
 
-	repos, err := c.Repos(ctx, &ListRepoOptions{
-		Start: 0,
-		End:   10,
+	t.Run("0-10", func(t *testing.T) {
+		repos, err := c.Repos(ctx, &ListRepoOptions{
+			Start: 0,
+			End:   10,
+		})
+		if err != nil {
+			t.Errorf("get repos error: %s", err)
+			return
+		}
+		for _, repo := range repos {
+			t.Logf("got [%s]\n", repo.Name)
+		}
 	})
-	if err != nil {
-		t.Errorf("get repos error: %s", err)
-		return
-	}
-	for _, repo := range repos {
-		t.Logf("got [%s]\n", repo.Name)
-	}
+
+	t.Run("all", func(t *testing.T) {
+		repos, err := c.Repos(ctx, nil)
+		if err != nil {
+			t.Errorf("get repos error: %s", err)
+			return
+		}
+		for _, repo := range repos {
+			t.Logf("got [%s]\n", repo.Name)
+		}
+	})
 
 }
 
@@ -69,6 +82,25 @@ func TestListRepoWithTags(t *testing.T) {
 
 }
 
+func TestGetRepoTags(t *testing.T) {
+	ctx := context.Background()
+	c, err := initTestClient()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	tags, err := c.Tags(ctx, "platform/qimen", nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	for _, tag := range tags {
+		t.Logf("got [%s] tag: %s\n", tag.RepoName, tag.Name)
+	}
+
+}
+
 func TestGetImage(t *testing.T) {
 	ctx := context.Background()
 	c, err := initTestClient()
@@ -78,7 +110,7 @@ func TestGetImage(t *testing.T) {
 	}
 
 	t.Run("client get image", func(t *testing.T) {
-		image, err := c.Image(ctx, "backend/dnsproxy", "")
+		image, err := c.Image(ctx, "platform/crek", "")
 		if err != nil {
 			t.Error(err)
 			return
