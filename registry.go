@@ -9,6 +9,8 @@ import (
 type Registry interface {
 	// Repos list the repositories
 	Repos(ctx context.Context, opts *ListRepoOptions) ([]Repository, error)
+	// ReposChan returns a channel caontains the repos
+	ReposChan(ctx context.Context, opts *ListRepoOptions) (chan Repository, error)
 	// Tags list the tags of the repository
 	Tags(ctx context.Context, repo string, opts *ListTagOptions) ([]Tag, error)
 	// Image get the image instance via the specfic repo and tag

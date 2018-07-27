@@ -83,15 +83,21 @@ type Image struct {
 
 // FullName return the image name and it's tag
 func (i *Image) FullName() string {
+	if i.V1 == nil {
+		return "error: cannot get name"
+	}
 	return i.V1.Name + ":" + i.V1.Tag
 }
 
 // History converts the v1's history info to reglib's history struct
 func (i *Image) History() []ImageHistory {
+	if i.V1 == nil {
+		return nil
+	}
 	if len(i.history) != 0 {
 		return i.history
 	}
-	iHistory := make([]ImageHistory, 0, len(i.V1.History))
+	iHistory := make([]ImageHistory, 0)
 	for _, hist := range i.V1.History {
 		ihist := ImageHistory{}
 		if json.Unmarshal([]byte(hist.V1Compatibility), &ihist) == nil {
@@ -103,22 +109,34 @@ func (i *Image) History() []ImageHistory {
 
 // FSLayers returns the fs layer info (schemav1)
 func (i *Image) FSLayers() []v1.FSLayer {
+	if i.V1 == nil {
+		return nil
+	}
 	return i.V1.FSLayers
 }
 
 // Layers returns the layer info (schemav2)
 func (i *Image) Layers() []dis.Descriptor {
+	if i.V2 == nil {
+		return nil
+	}
 	return i.V2.Layers
 }
 
 // Created returns the image's create time
 func (i *Image) Created() time.Time {
+	if i.V1 == nil {
+		return time.Time{}
+	}
 	hist := i.History()
 	return hist[len(hist)-1].Created
 }
 
 // Size returns the image's size
 func (i *Image) Size() imageSize {
+	if i.V2 == nil {
+		return 0
+	}
 	if i.size != 0 {
 		return i.size
 	}

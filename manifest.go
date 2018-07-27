@@ -11,7 +11,10 @@ import (
 
 func manifestV1(ctx context.Context, ms dis.ManifestService,
 	tag string) (*v1.Manifest, error) {
-	manifestV1 := &v1.Manifest{}
+	manifestV1 := &v1.Manifest{
+		FSLayers: []v1.FSLayer{},
+		History:  []v1.History{},
+	}
 	m, err := ms.Get(ctx, "",
 		dis.WithTag(tag),
 		dis.WithManifestMediaTypes(
@@ -30,7 +33,9 @@ func manifestV1(ctx context.Context, ms dis.ManifestService,
 
 func manifestV2(ctx context.Context, ms dis.ManifestService,
 	tag string) (*v2.Manifest, error) {
-	manifestV2 := &v2.Manifest{}
+	manifestV2 := &v2.Manifest{
+		Layers: []dis.Descriptor{},
+	}
 	m, err := ms.Get(ctx, "",
 		dis.WithTag(tag),
 		dis.WithManifestMediaTypes(

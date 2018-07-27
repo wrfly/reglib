@@ -172,7 +172,7 @@ func (c *client) Tags(ctx context.Context, repo string,
 		if opts.WithManifest {
 			img, err = c.Image(ctx, repo, tag)
 			if err != nil {
-				fmt.Printf("get image [%s:%s] error: %s", repo, tag, err)
+				fmt.Printf("get image [%s:%s] error: %s\n", repo, tag, err)
 			}
 		}
 		manifestTags = append(manifestTags, Tag{
@@ -206,12 +206,12 @@ func (c *client) Image(ctx context.Context, repo, tag string) (img *Image, err e
 
 	img.V1, err = manifestV1(ctx, ms, tag)
 	if err != nil {
-		return img, err
+		fmt.Printf("get image[%s:%s] schamev1 error: %s\n", repo, tag, err)
 	}
 
 	img.V2, err = manifestV2(ctx, ms, tag)
 	if err != nil {
-		return img, err
+		fmt.Printf("get image[%s:%s] schamev2 error: %s\n", repo, tag, err)
 	}
 
 	return img, err
