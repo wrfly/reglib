@@ -16,7 +16,7 @@ func main() {
 	registry := flag.String("r", "r.kfd.me", "registry address")
 	user := flag.String("u", "admin", "registry auth username")
 	pass := flag.String("p", "admin123", "registry auth password")
-	dir := flag.String("d", ".", "registry auth password")
+	dir := flag.String("d", ".", "file path to store the image info files")
 	flag.Parse()
 
 	log.Printf("connect to registry [%s] with [%s:%s] and dumps to dir [%s]\n",
