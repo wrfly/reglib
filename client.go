@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -102,7 +103,7 @@ func (c *client) ReposChan(ctx context.Context, opts *ListRepoOptions) (chan Rep
 				last = tempRepos[n-1]
 				continue
 			} else {
-				fmt.Printf("get repos error: %s", err)
+				log.Printf("get repos error: %s\n", err)
 			}
 		}
 	}()
@@ -122,9 +123,6 @@ func (c *client) ReposChan(ctx context.Context, opts *ListRepoOptions) (chan Rep
 
 				if opts.WithTags {
 					tags, err = c.Tags(ctx, repo, nil)
-					if err != nil {
-						fmt.Printf("get repo [%s] tags error: %s\n", repo, err)
-					}
 				}
 
 				repoChan <- Repository{
@@ -132,6 +130,7 @@ func (c *client) ReposChan(ctx context.Context, opts *ListRepoOptions) (chan Rep
 					Name:      repo,
 					tags:      tags,
 					cli:       c,
+					tagErr:    err,
 				}
 			}(name)
 			i++
@@ -171,9 +170,6 @@ func (c *client) Tags(ctx context.Context, repo string,
 	for _, tag := range tags {
 		if opts.WithManifest {
 			img, err = c.Image(ctx, repo, tag)
-			if err != nil {
-				fmt.Printf("get image [%s:%s] error: %s\n", repo, tag, err)
-			}
 		}
 		manifestTags = append(manifestTags, Tag{
 			FullName: repo + ":" + tag,
@@ -181,6 +177,7 @@ func (c *client) Tags(ctx context.Context, repo string,
 			RepoName: repo,
 			image:    img,
 			cli:      c,
+			imgErr:   err,
 		})
 	}
 
@@ -206,12 +203,12 @@ func (c *client) Image(ctx context.Context, repo, tag string) (img *Image, err e
 
 	img.V1, err = manifestV1(ctx, ms, tag)
 	if err != nil {
-		fmt.Printf("get image[%s:%s] schamev1 error: %s\n", repo, tag, err)
+		return img, fmt.Errorf("get schamev1 error: %s", err)
 	}
 
 	img.V2, err = manifestV2(ctx, ms, tag)
 	if err != nil {
-		fmt.Printf("get image[%s:%s] schamev2 error: %s\n", repo, tag, err)
+		return img, fmt.Errorf("get schamev2 error: %s", err)
 	}
 
 	return img, err

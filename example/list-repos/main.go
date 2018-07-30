@@ -29,10 +29,15 @@ func main() {
 	if err != nil {
 		return
 	}
-	log.Printf("get repos info chan...\n\n")
+	log.Printf("get repos info chan...\n")
 
 	for repo := range repos {
-		if tags := repo.Tags(); len(tags) > 5 {
+		tags, err := repo.Tags()
+		if err != nil {
+			log.Printf("get [%s] tags error: %s\n", repo.Name, err)
+			continue
+		}
+		if len(tags) > 5 {
 			fmt.Printf("%s %v... and %d more\n", repo.Name, reglib.ExtractTagNames(tags[:5]), len(tags)-5)
 		} else {
 			fmt.Printf("%s %v\n", repo.Name, reglib.ExtractTagNames(tags))

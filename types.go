@@ -17,21 +17,25 @@ type Repository struct {
 	Namespace string
 	tags      []Tag
 	cli       *client
+	tagErr    error
 }
 
 // Tags returns the repo's tags
-func (r *Repository) Tags() []Tag {
+func (r *Repository) Tags() ([]Tag, error) {
+	if r.tagErr != nil {
+		return nil, r.tagErr
+	}
 	if len(r.tags) != 0 {
-		return r.tags
+		return r.tags, nil
 	}
 	if r.cli == nil {
-		return nil
+		return nil, fmt.Errorf("nil client")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	tags, _ := r.cli.Tags(ctx, r.Name, nil)
-	r.tags = tags
-	return tags
+	tags, err := r.cli.Tags(ctx, r.Name, nil)
+	r.tags, r.tagErr = tags, err
+	return tags, err
 }
 
 // Tag is the image's specfic tag
@@ -41,10 +45,14 @@ type Tag struct {
 	RepoName string
 	image    *Image
 	cli      *client
+	imgErr   error
 }
 
 // Image returns the repo:tag's manifest
 func (t *Tag) Image() (*Image, error) {
+	if t.imgErr != nil {
+		return nil, t.imgErr
+	}
 	if t.image != nil {
 		return t.image, nil
 	}
