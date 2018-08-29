@@ -15,7 +15,7 @@ import (
 	rClient "github.com/docker/distribution/registry/client"
 )
 
-type client struct {
+type Client struct {
 	baseURL  string
 	username string
 	password string
@@ -25,7 +25,7 @@ type client struct {
 	registryURL *url.URL
 }
 
-func (c *client) init() error {
+func (c *Client) init() error {
 	if c.username == "" || c.password == "" {
 		c.username, c.password = GetAuthFromFile(c.baseURL)
 	}
@@ -53,7 +53,7 @@ func (c *client) init() error {
 	return err
 }
 
-func (c *client) Repos(ctx context.Context,
+func (c *Client) Repos(ctx context.Context,
 	opts *ListRepoOptions) ([]Repository, error) {
 
 	repoChan, err := c.ReposChan(ctx, opts)
@@ -67,7 +67,7 @@ func (c *client) Repos(ctx context.Context,
 	return repos, nil
 }
 
-func (c *client) ReposChan(ctx context.Context, opts *ListRepoOptions) (chan Repository, error) {
+func (c *Client) ReposChan(ctx context.Context, opts *ListRepoOptions) (chan Repository, error) {
 
 	if opts == nil {
 		opts = &ListRepoOptions{}
@@ -143,7 +143,7 @@ func (c *client) ReposChan(ctx context.Context, opts *ListRepoOptions) (chan Rep
 	return repoChan, nil
 }
 
-func (c *client) Tags(ctx context.Context, repo string,
+func (c *Client) Tags(ctx context.Context, repo string,
 	opts *ListTagOptions) ([]Tag, error) {
 
 	if opts == nil {
@@ -185,7 +185,7 @@ func (c *client) Tags(ctx context.Context, repo string,
 
 }
 
-func (c *client) Image(ctx context.Context, repo, tag string) (img *Image, err error) {
+func (c *Client) Image(ctx context.Context, repo, tag string) (img *Image, err error) {
 	img = &Image{}
 
 	if tag == "" {
@@ -214,11 +214,11 @@ func (c *client) Image(ctx context.Context, repo, tag string) (img *Image, err e
 	return img, err
 }
 
-func (c *client) Host() string {
+func (c *Client) Host() string {
 	return c.registryURL.Host
 }
 
-func (c *client) newRepo(name, tag string) (dis.Repository, error) {
+func (c *Client) newRepo(name, tag string) (dis.Repository, error) {
 	named, err := reference.WithName(name)
 	if err != nil {
 		return nil, err

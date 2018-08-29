@@ -21,7 +21,7 @@ type Registry interface {
 
 // New docker registry client
 func New(baseURL, user, pass string) (Registry, error) {
-	c := &client{
+	c := &Client{
 		baseURL:  baseURL,
 		username: user,
 		password: pass,
@@ -32,4 +32,9 @@ func New(baseURL, user, pass string) (Registry, error) {
 	}
 
 	return c, nil
+}
+
+// New docker registry client from docker config file
+func NewFromConfigFile(baseURL string) (Registry, error) {
+	return New(baseURL, "", "")
 }

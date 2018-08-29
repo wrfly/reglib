@@ -16,7 +16,7 @@ type Repository struct {
 	Name      string
 	Namespace string
 	tags      []Tag
-	cli       *client
+	cli       *Client
 	tagErr    error
 }
 
@@ -44,7 +44,7 @@ type Tag struct {
 	FullName string
 	RepoName string
 	image    *Image
-	cli      *client
+	cli      *Client
 	imgErr   error
 }
 
