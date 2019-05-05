@@ -68,7 +68,7 @@ func string2Map(str string) map[string]string {
 // GetAuthFromFile returns the username, password of that registry from
 // the config file ($HOME/.docker/config.json)
 func GetAuthFromFile(regAddr string) (string, string) {
-	configs, err := parseDockerCondig()
+	configs, err := parseDockerConfig()
 	if err != nil {
 		return "", ""
 	}

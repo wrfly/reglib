@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func initTestClient() (client, error) {
-	c := client{
-		baseURL:  "docker.nexusguard.net",
-		username: os.Getenv("REG_U"),
+func initTestClient() (*Client, error) {
+	c := &Client{
+		baseURL:  "r.kfd.me",
+		username: "admin",
 		password: os.Getenv("REG_P"),
 	}
 	return c, c.init()
@@ -95,7 +95,7 @@ func TestGetRepoTags(t *testing.T) {
 		return
 	}
 
-	tags, err := c.Tags(ctx, "platform/qimen", nil)
+	tags, err := c.Tags(ctx, "alpine", nil)
 	if err != nil {
 		t.Logf("got tag error: %s", err)
 		return
@@ -115,7 +115,7 @@ func TestGetImage(t *testing.T) {
 	}
 
 	t.Run("client get image", func(t *testing.T) {
-		image, err := c.Image(ctx, "platform/crek", "")
+		image, err := c.Image(ctx, "alpine", "")
 		if err != nil {
 			t.Error(err)
 			return
@@ -128,7 +128,7 @@ func TestGetImage(t *testing.T) {
 	})
 
 	t.Run("tag get image", func(t *testing.T) {
-		tags, err := c.Tags(ctx, "admin/alpine", nil)
+		tags, err := c.Tags(ctx, "alpine", nil)
 		if err != nil {
 			t.Logf("got image error: %s", err)
 			return
@@ -143,7 +143,7 @@ func TestGetImage(t *testing.T) {
 	})
 
 	t.Run("image size", func(t *testing.T) {
-		tags, err := c.Tags(ctx, "admin/alpine", nil)
+		tags, err := c.Tags(ctx, "alpine", nil)
 		if err != nil {
 			t.Logf("got image error: %s", err)
 			return

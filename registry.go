@@ -36,5 +36,6 @@ func New(baseURL, user, pass string) (Registry, error) {
 
 // NewFromConfigFile ...
 func NewFromConfigFile(baseURL string) (Registry, error) {
-	return New(baseURL, "", "")
+	username, password := GetAuthFromFile(baseURL)
+	return New(baseURL, username, password)
 }
