@@ -15,6 +15,7 @@ import (
 	rClient "github.com/docker/distribution/registry/client"
 )
 
+// Client represents for a docker registry client
 type Client struct {
 	baseURL  string
 	username string

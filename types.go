@@ -38,7 +38,7 @@ func (r *Repository) Tags() ([]Tag, error) {
 	return tags, err
 }
 
-// Tag is the image's specfic tag
+// Tag is the image's specific tag
 type Tag struct {
 	Name     string
 	FullName string
