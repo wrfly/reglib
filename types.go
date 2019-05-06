@@ -66,9 +66,10 @@ func (t *Tag) Image() (*Image, error) {
 	return img, err
 }
 
-type imageSize int64
+// ImageSize is the size of the image
+type ImageSize int64
 
-func (is imageSize) String() string {
+func (is ImageSize) String() string {
 	switch {
 	case is > gbSize:
 		return fmt.Sprintf("%.3fGB", float64(is/gbSize)+float64(is%gbSize)/float64(gbSize))
@@ -86,7 +87,7 @@ type Image struct {
 	V1      *v1.Manifest
 	V2      *v2.Manifest
 	history []ImageHistory
-	size    imageSize
+	size    ImageSize
 }
 
 // FullName return the image name and it's tag
@@ -141,7 +142,7 @@ func (i *Image) Created() time.Time {
 }
 
 // Size returns the image's size
-func (i *Image) Size() imageSize {
+func (i *Image) Size() ImageSize {
 	if i.V2 == nil {
 		return 0
 	}
@@ -152,7 +153,7 @@ func (i *Image) Size() imageSize {
 	for _, layer := range i.V2.Layers {
 		size += layer.Size
 	}
-	i.size = imageSize(size)
+	i.size = ImageSize(size)
 	return i.size
 }
 
