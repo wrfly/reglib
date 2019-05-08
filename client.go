@@ -24,6 +24,7 @@ type Client struct {
 	registry    rClient.Registry
 	author      http.RoundTripper
 	registryURL *url.URL
+	client      *http.Client
 }
 
 func (c *Client) init() error {
@@ -51,6 +52,11 @@ func (c *Client) init() error {
 	if n != 1 {
 		return fmt.Errorf("can not get repositories: %s (%d)", err, n)
 	}
+
+	c.client = &http.Client{
+		Transport: c.author,
+	}
+
 	return err
 }
 
@@ -68,7 +74,8 @@ func (c *Client) Repos(ctx context.Context,
 	return repos, nil
 }
 
-func (c *Client) ReposChan(ctx context.Context, opts *ListRepoOptions) (chan Repository, error) {
+func (c *Client) ReposChan(ctx context.Context,
+	opts *ListRepoOptions) (chan Repository, error) {
 
 	if opts == nil {
 		opts = &ListRepoOptions{}
@@ -187,7 +194,7 @@ func (c *Client) Tags(ctx context.Context, repo string,
 }
 
 func (c *Client) Image(ctx context.Context, repo, tag string) (img *Image, err error) {
-	img = &Image{}
+	img = &Image{c: c}
 
 	if tag == "" {
 		tag = "latest"
