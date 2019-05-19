@@ -31,6 +31,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	reglib.DEBUG = true
 
 	image, err := r.Image(context.Background(), targetRepo, targetTag)
 	if err != nil {
@@ -38,8 +39,7 @@ func main() {
 	}
 
 	err = image.Download(context.Background(),
-		fmt.Sprintf("/tmp/reglib/%s",
-			strings.Replace(targetRepo, "/", ".", -1)),
+		fmt.Sprintf("/tmp/reglib/%s", strings.Replace(targetRepo, "/", ".", -1)),
 	)
 	if err != nil {
 		panic(err)

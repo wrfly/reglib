@@ -163,41 +163,41 @@ func (i *Image) Size() ImageSize {
 
 // Download this image
 func (i *Image) Download(ctx context.Context, target string) error {
+	debug("start to download %s", i.FullName())
+	start := time.Now()
+
 	wg := new(sync.WaitGroup)
-	limit := make(chan struct{}, 5)
 	errChan := make(chan error, 10)
 
 	for index, layer := range i.V2.Layers {
 		path := fmt.Sprintf("/v2/%s/blobs/%s", i.V1.Name, layer.Digest)
-		resp, err := i.c.client.Head(fmt.Sprintf("%s%s", i.c.baseURL, path))
-		if err != nil {
-			return err
-		}
-		resp.Body.Close()
-
-		length, err := strconv.Atoi(resp.Header.Get("Content-Length"))
-		if err != nil {
-			return err
-		}
-		limit <- struct{}{}
-
 		wg.Add(1)
 		go func(index int, path, hex string) {
+			resp, err := i.c.client.Head(fmt.Sprintf("%s%s", i.c.baseURL, path))
+			if err != nil {
+				fmt.Println("head content error:", err)
+				return
+			}
+			resp.Body.Close()
+
+			length, err := strconv.Atoi(resp.Header.Get("Content-Length"))
+			if err != nil {
+				fmt.Println("bad content length:", err)
+				return
+			}
+
 			defer wg.Done()
-			if err := i.c.parallelDownload(ctx, wg, path,
-				fmt.Sprintf("%s.%d.%s.tgz", target, index, hex),
-				length); err != nil {
+			fName := fmt.Sprintf("%s.%d.%s.tgz", target, index, hex)
+			if err := i.c.parallelDownload(ctx, path, fName, length); err != nil {
 				fmt.Println("parallelDownload error:", err)
 			}
-			<-limit
 		}(index, path, layer.Digest.Hex())
 	}
 
 	go func() {
 		wg.Wait()
-		close(limit)
+		debug("done, use %s", time.Now().Sub(start))
 		close(errChan) // no error
-		fmt.Println("done")
 	}()
 
 	return <-errChan

@@ -7,45 +7,44 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
-func mkupRange(s, e int) string {
+func makeupRange(s, e int) string {
 	return fmt.Sprintf("bytes=%d-%d", s, e)
 }
 
-const fixedSize = int(100 * mbSize)
+const fixedSize = int(10 * mbSize)
 
 func splitRanges(length int) []string {
 	x := []string{}
 	if length < fixedSize {
-		return []string{mkupRange(0, length)}
+		return []string{makeupRange(0, length)}
 	}
 
-	step := length / 10
+	step := length / 5
 	if step < fixedSize {
 		step = fixedSize
 	}
 	final := step + length%5
 	for i := 0; i < length-final; i += step {
-		x = append(x, mkupRange(i, i+step-1))
+		x = append(x, makeupRange(i, i+step-1))
 	}
 
-	return append(x, mkupRange(length-final, length))
+	return append(x, makeupRange(length-final, length))
 }
 
-func (c *Client) parallelDownload(ctx context.Context,
-	wg *sync.WaitGroup, path, target string, length int) error {
+func (c *Client) parallelDownload(ctx context.Context, path, target string, length int) error {
 
-	wg.Add(1)
-
-	subWG := new(sync.WaitGroup)
+	wg := new(sync.WaitGroup)
 	errChan := make(chan error, 5)
 	contentRanges := splitRanges(length)
 
+	downloadStart := time.Now()
 	for part, contentRange := range contentRanges {
-		subWG.Add(1)
+		wg.Add(1)
 		go func(part int, contentRange string) {
-			defer subWG.Done()
+			defer wg.Done()
 
 			req, err := http.NewRequest("GET",
 				fmt.Sprintf("%s%s", c.baseURL, path), nil)
@@ -71,46 +70,39 @@ func (c *Client) parallelDownload(ctx context.Context,
 			}
 		}(part, contentRange)
 	}
+	wg.Wait()
+	debug("download %s use %s", target, time.Now().Sub(downloadStart))
 
-	go func() {
-		defer wg.Done()
-
-		subWG.Wait()
-		for part := len(contentRanges) - 1; part >= 0; part-- {
-			if part-1 < 0 {
-				break
-			}
-
-			curF, err := os.OpenFile(fmt.Sprintf("%s.part%d", target, part),
-				os.O_RDONLY, 0644)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			prvF, err := os.OpenFile(fmt.Sprintf("%s.part%d", target, part-1),
-				os.O_WRONLY|os.O_APPEND, 0644)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			if _, err := io.Copy(prvF, curF); err != nil {
-				errChan <- err
-			}
-
-			curF.Close()
-			prvF.Close()
-
-			os.Remove(fmt.Sprintf("%s.part%d", target, part))
+	start := time.Now()
+	for part := len(contentRanges) - 1; part > 0; part-- {
+		if part == 0 {
+			break
 		}
-		os.Rename(
-			fmt.Sprintf("%s.part0", target),
-			target,
-		)
 
-		close(errChan)
-	}()
+		curF, err := os.OpenFile(fmt.Sprintf("%s.part%d", target, part),
+			os.O_RDONLY, 0644)
+		if err != nil {
+			return err
+		}
+		prvF, err := os.OpenFile(fmt.Sprintf("%s.part%d", target, part-1),
+			os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(prvF, curF); err != nil {
+			return err
+		}
+		if err := curF.Close(); err != nil {
+			return err
+		}
+		if err := prvF.Close(); err != nil {
+			return err
+		}
+		if err := os.Remove(fmt.Sprintf("%s.part%d", target, part)); err != nil {
+			return err
+		}
+	}
+	debug("merge %s use %s", target, time.Now().Sub(start))
 
-	return <-errChan
+	return os.Rename(fmt.Sprintf("%s.part0", target), target)
 }
