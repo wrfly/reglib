@@ -52,10 +52,14 @@ func handleRepo(base string, repo reglib.Repository) {
 
 	buckets := make(chan struct{}, 100)
 
+	tags, err := repo.Tags()
+	if err != nil {
+		log.Fatalf("get image tags error: %s", err)
+	}
 	var wg sync.WaitGroup
-	wg.Add(len(repo.Tags()))
+	wg.Add(len(tags))
 
-	for _, tag := range repo.Tags() {
+	for _, tag := range tags {
 		go func(tag reglib.Tag) {
 			buckets <- struct{}{}
 			defer func() { <-buckets }()
