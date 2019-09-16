@@ -21,8 +21,15 @@ type author struct {
 func newAuthRoundTripper(u, p string) *author {
 	return &author{
 		userInfo: url.UserPassword(u, p),
-		client:   http.DefaultClient,
-		tokens:   make(map[string]token, 100),
+		client: &http.Client{
+			Transport: &http.Transport{
+				MaxConnsPerHost:     50,
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 50,
+			},
+			Timeout: 10 * time.Second,
+		},
+		tokens: make(map[string]token, 100),
 	}
 }
 

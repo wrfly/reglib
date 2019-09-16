@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"sync"
 	"time"
 
 	dis "github.com/docker/distribution"
@@ -66,9 +68,10 @@ func (t *Tag) Image() (*Image, error) {
 	return img, err
 }
 
-type imageSize int64
+// ImageSize is the size of the image
+type ImageSize int64
 
-func (is imageSize) String() string {
+func (is ImageSize) String() string {
 	switch {
 	case is > gbSize:
 		return fmt.Sprintf("%.3fGB", float64(is/gbSize)+float64(is%gbSize)/float64(gbSize))
@@ -86,7 +89,9 @@ type Image struct {
 	V1      *v1.Manifest
 	V2      *v2.Manifest
 	history []ImageHistory
-	size    imageSize
+	size    ImageSize
+
+	c *Client
 }
 
 // FullName return the image name and it's tag
@@ -141,7 +146,7 @@ func (i *Image) Created() time.Time {
 }
 
 // Size returns the image's size
-func (i *Image) Size() imageSize {
+func (i *Image) Size() ImageSize {
 	if i.V2 == nil {
 		return 0
 	}
@@ -152,8 +157,50 @@ func (i *Image) Size() imageSize {
 	for _, layer := range i.V2.Layers {
 		size += layer.Size
 	}
-	i.size = imageSize(size)
+	i.size = ImageSize(size)
 	return i.size
+}
+
+// Download this image
+func (i *Image) Download(ctx context.Context, target string) error {
+	debug("start to download %s", i.FullName())
+	start := time.Now()
+
+	wg := new(sync.WaitGroup)
+	errChan := make(chan error, 10)
+
+	for index, layer := range i.V2.Layers {
+		path := fmt.Sprintf("/v2/%s/blobs/%s", i.V1.Name, layer.Digest)
+		wg.Add(1)
+		go func(index int, path, hex string) {
+			resp, err := i.c.client.Head(fmt.Sprintf("%s%s", i.c.baseURL, path))
+			if err != nil {
+				fmt.Println("head content error:", err)
+				return
+			}
+			resp.Body.Close()
+
+			length, err := strconv.Atoi(resp.Header.Get("Content-Length"))
+			if err != nil {
+				fmt.Println("bad content length:", err)
+				return
+			}
+
+			defer wg.Done()
+			fName := fmt.Sprintf("%s.%d.%s.tgz", target, index, hex)
+			if err := i.c.parallelDownload(ctx, path, fName, length); err != nil {
+				fmt.Println("parallelDownload error:", err)
+			}
+		}(index, path, layer.Digest.Hex())
+	}
+
+	go func() {
+		wg.Wait()
+		debug("done, use %s", time.Now().Sub(start))
+		close(errChan) // no error
+	}()
+
+	return <-errChan
 }
 
 // ListRepoOptions ...

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"strings"
@@ -117,4 +118,13 @@ func ExtractTagNames(tags []Tag) []string {
 		names = append(names, tag.Name)
 	}
 	return names
+}
+
+// DEBUG enables debug output
+var DEBUG bool
+
+func debug(format string, v ...interface{}) {
+	if DEBUG {
+		log.Printf(format, v...)
+	}
 }
