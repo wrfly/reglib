@@ -41,15 +41,6 @@ func (c *Client) init() error {
 	c.author = newAuthRoundTripper(c.username, c.password)
 	c.registry, err = rClient.NewRegistry(c.baseURL, c.author)
 
-	slice := make([]string, 1)
-	n, err := c.registry.Repositories(context.Background(), slice, "")
-	if err == io.EOF {
-		return nil
-	}
-	if n != 1 {
-		return fmt.Errorf("can not get repositories: %s (%d)", err, n)
-	}
-
 	c.client = &http.Client{
 		Transport: c.author,
 	}
