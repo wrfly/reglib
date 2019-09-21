@@ -28,9 +28,6 @@ type Client struct {
 }
 
 func (c *Client) init() error {
-	if c.username == "" || c.password == "" {
-		return fmt.Errorf("bad auth [%s:%s]", c.username, c.password)
-	}
 	u, err := url.Parse(c.baseURL)
 	if err != nil {
 		return err
