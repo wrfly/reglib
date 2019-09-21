@@ -40,10 +40,13 @@ func parseDockerConfig() (dockerConfig, error) {
 		if err != nil {
 			continue
 		}
-		if u.Port() == "" {
-			addr = u.Hostname()
-		} else {
-			addr = fmt.Sprintf("%s:%s", u.Hostname(), u.Port())
+
+		if u.Scheme != "" {
+			if u.Port() == "" {
+				addr = u.Hostname()
+			} else {
+				addr = fmt.Sprintf("%s:%s", u.Hostname(), u.Port())
+			}
 		}
 
 		// special for docker.io
