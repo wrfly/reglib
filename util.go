@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"os"
 	"path"
 	"strings"
 )
 
+const dockerConfigPath = ".docker/config.json"
+
 func parseDockerConfig() (dockerConfig, error) {
 	dc := dockerConfig{}
 
-	HOME := os.Getenv("HOME")
-	config := path.Join(HOME, ".docker/config.json")
+	config := path.Join(os.Getenv("HOME"), dockerConfigPath)
 	f, err := os.Open(config)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -32,10 +34,31 @@ func parseDockerConfig() (dockerConfig, error) {
 		return dc, err
 	}
 
+	// remove prefix and sufix
+	for addr, auth := range dc.Auths {
+		u, err := url.Parse(addr)
+		if err != nil {
+			continue
+		}
+		if u.Port() == "" {
+			addr = u.Hostname()
+		} else {
+			addr = fmt.Sprintf("%s:%s", u.Hostname(), u.Port())
+		}
+
+		// special for docker.io
+		if addr == "index.docker.io" {
+			dc.Auths["docker.io"] = auth
+		}
+
+		dc.Auths[addr] = auth
+	}
+
 	return dc, nil
 }
 
-func parseAuth(auth string) (string, string) {
+// UnmarshalAuth returns the username and password for that auth credential
+func UnmarshalAuth(auth string) (string, string) {
 	bs, err := base64.StdEncoding.DecodeString(auth)
 	if err != nil {
 		return "", ""
@@ -68,17 +91,25 @@ func string2Map(str string) map[string]string {
 
 // GetAuthFromFile returns the username, password of that registry from
 // the config file ($HOME/.docker/config.json)
-func GetAuthFromFile(regAddr string) (string, string) {
-	configs, err := parseDockerConfig()
+func GetAuthFromFile(registry string) (string, string) {
+	tokens, err := GetAuthTokens()
 	if err != nil {
 		return "", ""
 	}
-	for reg, auth := range configs.Auths {
-		if reg == regAddr {
-			return parseAuth(auth.Auth)
-		}
+	return UnmarshalAuth(tokens[registry])
+}
+
+// GetAuthTokens from $HOME/.docker/config.json
+func GetAuthTokens() (map[string]string, error) {
+	cfg, err := parseDockerConfig()
+	if err != nil {
+		return nil, err
 	}
-	return "", ""
+	m := make(map[string]string)
+	for addr, auth := range cfg.Auths {
+		m[addr] = auth.Auth
+	}
+	return m, nil
 }
 
 func slice2Chan(slice []string, ch chan string) {
